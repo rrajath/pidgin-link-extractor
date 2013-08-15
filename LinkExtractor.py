@@ -34,7 +34,6 @@ fb_user_map = {}
 # Map Facebook userIds with names since log file names have numbers in them
 # Do an initial scan of the userIds and store it in a dictionary
 # To be called after scanning accounts
-# NEED BETTER DESIGN!!
 def map_user_ids(accounts):
     users_dict = {}
     tmp = os.getcwd()
@@ -48,12 +47,12 @@ def map_user_ids(accounts):
                 alias = user.find('alias').text
                 name = user.find('name').text
                 if not users_dict.has_key(alias):
-                    id = [name]
-                    users_dict[alias] = id
+                    user_id = [name]
+                    users_dict[alias] = user_id
                 else:
-                    id = users_dict[alias]
+                    user_id = users_dict[alias]
                     id.append(name)
-                    users_dict[alias] = id
+                    users_dict[alias] = user_id
             except:
                 # For some facebook ids, usernames are not available. Handle it in logs
                 pass
@@ -122,6 +121,14 @@ def get_url_title(url):
     title = t.find(".//title").text
     return saxutils.escape(title)
 
+# If it's a YouTube URL, embed the video in the output HTML
+def embed_youtube_video(yt_link):
+    yt_link = yt_link.replace('watch?v=','embed/')
+    yt_link = yt_link[yt_link.find('www'):]
+    embed_text = '<iframe width="560" height="315" src="http://' + yt_link + '" frameborder="0" allowfullscreen></iframe>'
+
+    return embed_text
+    
 # Replace placeholders in HTML stub with actual links and corresponding dates
 def insert_links_in_html(urls):
     output = ''
@@ -129,7 +136,11 @@ def insert_links_in_html(urls):
         date = '<h2>' + k + '</h2>'
         links = ''
         for link in v:
-            links += '<ul> <a href="' + link + '">' + get_url_title(link) + '</a></ul>'
+            if 'youtube' in link:
+                embed_link = embed_youtube_video(link)
+                links += '<ul>' + get_url_title(link) + '<br/>' + embed_link + '</ul>'
+            else:
+                links += '<ul> <a href="' + link + '">' + get_url_title(link) + '</a></ul>'
         output += date + links
     return output
 
