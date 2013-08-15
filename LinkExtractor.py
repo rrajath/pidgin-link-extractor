@@ -24,6 +24,8 @@ username = getpass.getuser()
 log_path = '/home/' + username + '/.purple/logs/jabber'
 buddy_list_file = '/home/' + username + '/.purple/blist.xml'
 
+re_exp = 'http[s]?://(?:[a-zA-Z]|[0-9]|[$-_@.&+]|[!*\(\),]|(?:%[0-9a-fA-F][0-9a-fA-F]))+'
+
 accounts = []
 users = []
 urls_dict = {}
@@ -62,7 +64,6 @@ def map_user_ids(accounts):
 # Extracts URL from a ping
 def extract_url(line):
     # Identify URL and extract it
-    re_exp = 'http[s]?://(?:[a-zA-Z]|[0-9]|[$-_@.&+]|[!*\(\),]|(?:%[0-9a-fA-F][0-9a-fA-F]))+'
     refined_url = re.findall(re_exp, line)
     if len(refined_url) == 0:
         # throw exception
@@ -103,7 +104,8 @@ def get_links(users):
             lines = f.readlines()
             f.close()
             for line in lines:
-                if 'www' in line:
+#                 if 'www' in line:
+                if re.findall(re_exp, line):
                     if not urls_dict.get(date):
                         url_list = []
                     else:
