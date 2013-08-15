@@ -10,6 +10,7 @@ import lxml.html
 from xml.sax import saxutils
 import xml.etree.ElementTree as et
 import logging
+from pytrie import SortedStringTrie as trie
 
 # TODO: write a function to map facebook user-ids with their usernames
 # and display them while searching for a username
@@ -35,8 +36,11 @@ fb_user_map = {}
 # Do an initial scan of the userIds and store it in a dictionary
 # To be called after scanning accounts
 def map_user_ids(accounts):
+    # Store the location of previous directory in a temporary buffer
+    prev_dir = os.getcwd()
+    
+    #Parse the buddy list xml and store all mappings
     users_dict = {}
-    tmp = os.getcwd()
     tree = et.parse(buddy_list_file)
     root = tree.getroot()
     users = []
@@ -44,53 +48,67 @@ def map_user_ids(accounts):
         users = root.findall(".//*[@account='" + account + "/']")
         for user in users:
             try:
-                alias = user.find('alias').text
-                name = user.find('name').text
+                alias = user.find('alias').text.lower()
+                name = user.find('name').text.lower()
                 if not users_dict.has_key(alias):
                     user_id = [name]
                     users_dict[alias] = user_id
                 else:
                     user_id = users_dict[alias]
-                    id.append(name)
+                    user_id.append(name)
                     users_dict[alias] = user_id
             except:
                 # For some facebook ids, usernames are not available. Handle it in logs
                 pass
     # Switch back to the previous directory    
-    os.chdir(tmp)
+    os.chdir(prev_dir)
     return users_dict
     
 # Extracts URL from a ping
 def extract_url(line):
     # Identify URL and extract it
     refined_url = re.findall(re_exp, line)
+    
     if len(refined_url) == 0:
         # throw exception
         pass
+
     return list(set([i.strip('<br/>').strip('</a>') for i in refined_url]))
 
 # Searches for users based on the search term provided in the input
 def search_users(accounts, search_term):
     global dir_path
-    user_id = users_dict[search_term]
-    for i in accounts:
-        dir_path = log_path + '/' + i
+    
+    # Like search using PyTrie
+    t = trie(users_dict)
+
+    # Get list of aliases
+    # Search through aliases and get corresponding userIds and put them ALL in one list
+    aliases = t.keys(prefix=search_term)
+
+    users = []
+    names = []
+    for alias in aliases:
+        names = names + users_dict[alias]
+        
+    for account in accounts:
+        dir_path = log_path + '/' + account
         os.chdir(dir_path)
 
-        for j in os.listdir(dir_path):
-            for user in user_id:
-                if user in j:
-                    users.append(i + '/' + j)
-                    break
+        for name in names:
+            if name in os.listdir(dir_path):
+                users.append(account + '/' + name)
+                break
 
     return users
 
 # Lists different accounts for which logs are available
 def list_accounts(log_path):
-    for i in os.listdir(log_path):
-        accounts.append(i)
+    for account in os.listdir(log_path):
+        accounts.append(account)
     return accounts
 
+# Get all the links shared by each user
 def get_links(users):
     # Search in all accounts for that user. For example, the user may have accounts
     # in both gmail and facebook. The following code will search in both.
@@ -177,5 +195,8 @@ else:
 
 urls = get_links(users)
 
-generate_html(urls)
-print 'Output file generated!'
+if len(urls) != 0:
+    generate_html(urls)
+    print 'Output file generated!'
+else:
+    print 'No links found!'
