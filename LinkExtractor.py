@@ -8,6 +8,8 @@ import getpass
 import re
 import lxml.html
 from xml.sax import saxutils
+import xml.etree.ElementTree as et
+import logging
 
 # TODO: write a function to map facebook user-ids with their usernames
 # and display them while searching for a username
@@ -20,11 +22,43 @@ src_file_path = os.getcwd()
 # Get username on Linux system
 username = getpass.getuser()
 log_path = '/home/' + username + '/.purple/logs/jabber'
+buddy_list_file = '/home/' + username + '/.purple/blist.xml'
 
 accounts = []
 users = []
 urls_dict = {}
+fb_user_map = {}
 
+# Map Facebook userIds with names since log file names have numbers in them
+# Do an initial scan of the userIds and store it in a dictionary
+# To be called after scanning accounts
+# NEED BETTER DESIGN!!
+def map_user_ids(accounts):
+    users_dict = {}
+    tmp = os.getcwd()
+    tree = et.parse(buddy_list_file)
+    root = tree.getroot()
+    users = []
+    for account in accounts:
+        users = root.findall(".//*[@account='" + account + "/']")
+        for user in users:
+            try:
+                alias = user.find('alias').text
+                name = user.find('name').text
+                if not users_dict.has_key(alias):
+                    id = [name]
+                    users_dict[alias] = id
+                else:
+                    id = users_dict[alias]
+                    id.append(name)
+                    users_dict[alias] = id
+            except:
+                # For some facebook ids, usernames are not available. Handle it in logs
+                pass
+    # Switch back to the previous directory    
+    os.chdir(tmp)
+    return users_dict
+    
 # Extracts URL from a ping
 def extract_url(line):
     # Identify URL and extract it
@@ -38,12 +72,17 @@ def extract_url(line):
 # Searches for users based on the search term provided in the input
 def search_users(accounts, search_term):
     global dir_path
+    user_id = users_dict[search_term]
     for i in accounts:
         dir_path = log_path + '/' + i
         os.chdir(dir_path)
+
         for j in os.listdir(dir_path):
-            if search_term in j:
-                users.append(i + '/' + j)
+            for user in user_id:
+                if user in j:
+                    users.append(i + '/' + j)
+                    break
+
     return users
 
 # Lists different accounts for which logs are available
@@ -112,12 +151,18 @@ accounts = list_accounts(log_path)
 
 print 'Accounts Found: ', accounts
 
+users_dict = map_user_ids(accounts)
+
 search_term = raw_input('Search username:')
 
 users = search_users(accounts, search_term)
 
-print 'Users found:', users
+if len(users) != 0:
+    print 'Users found:', users
+else:
+    print 'No logs found'
 
 urls = get_links(users)
 
 generate_html(urls)
+print 'Output file generated!'
